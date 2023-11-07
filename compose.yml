@@ -1,0 +1,66 @@
+version: '3.8'
+services:
+  front:
+    container_name: front
+    build:
+      # frontディレクトリ内のDockerfileをビルドする
+      context: ./front
+      # コンテナ側起動時のディレクトリ位置を/workspace/frontとする
+      args:
+        - FRONT_WORKDIR=/workspace/front
+    tty: true
+    stdin_open: true
+    # マウントに関する設定
+    # ホスト側のルート位置(docker-compose.ymlが格納されている階層)を、コンテナ側 /workspace にバインドマウント
+    # コンテナ側のReactプロジェクトのnode_modulesを、front_storeにボリュームマウント
+    volumes:
+      - .:/workspace
+      - front_store:/workspace/front/$FRONT_PROJ_NAME/node_modules
+    ports:
+      - "5173:5173"
+    command: >
+      sh -c 
+        "if [ -e $FRONT_PROJ_NAME/package.json ]; then 
+          cd $FRONT_PROJ_NAME && yarn install && yarn dev --host
+        else
+          echo 'Project Directory is not found...' && tail -f /dev/null
+        fi" 
+  api:
+    container_name: api
+    build:
+      context: ./api
+      args:
+        - API_WORKDIR=/workspace/api
+    tty: true
+    stdin_open: true
+    ports:
+      - "5050:5050"
+      - "3000:3000"
+    volumes:
+      - .:/workspace
+      - api_store:/workspace/api/$API_PROJ_NAME/node_modules
+    command: >
+      sh -c 
+        "if [ -e $API_PROJ_NAME/package.json ]; then 
+          cd $API_PROJ_NAME && yarn install && yarn start:dev
+        else
+          echo 'Project Directory is not found...' && tail -f /dev/null
+        fi"
+    depends_on:
+      - postgresql
+  postgresql:
+    image: postgres:16
+    container_name: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - db_store:/var/lib/postgresql/data
+    environment:
+      TZ: Asia/Tokyo
+      POSTGRES_DB: $DB_NAME
+      POSTGRES_USER: $DB_USER
+      POSTGRES_PASSWORD: $DB_PASS
+volumes:
+  db_store:
+  front_store:
+  api_store:
